@@ -786,3 +786,4 @@ Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 ## 24. License và ghi chú
 
 Repo hiện chưa thấy file `LICENSE` ở root. Nếu bạn định public project này trên GitHub, nên bổ sung license phù hợp và che toàn bộ secrets trong `.env` trước khi push.
+"# Stock_Prediction" 
