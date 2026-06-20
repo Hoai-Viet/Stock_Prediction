@@ -5,7 +5,7 @@ Nền tảng dữ liệu và AI cho chứng khoán Việt Nam, tập trung vào 
 - Thu thập dữ liệu giá intraday, báo cáo tài chính ngân hàng và tin tức tài chính.
 - Chuẩn hóa và tổng hợp dữ liệu bằng PostgreSQL + dbt.
 - Sinh tín hiệu giao dịch `BUY` / `SELL` / `SILENT` bằng mô hình machine learning.
-- Dùng các combo rule FP-Growth sau bước ML để xác nhận và giải thích tín hiệu.
+- Dùng FP-Growth để học các combo rule có tỷ lệ BUY hoặc SELL cao.
 - Theo dõi chất lượng dữ liệu hằng ngày để phát hiện sớm lỗi crawl, thiếu coverage hoặc đứt pipeline.
 
 ## 1. Mục tiêu của project
@@ -139,8 +139,6 @@ Các model nổi bật:
 
 ### 4.4. FP-Growth layer
 
-FP-Growth chỉ được thực hiện sau bước ML. Hệ thống lấy tập feature đã được dùng trong mô hình ML, chuyển thành transaction rule và học các tổ hợp điều kiện có tỷ lệ BUY hoặc SELL cao.
-
 `scripts/fp_growth/append_likely_rules.py`
 
 - Nhận tập feature dùng bởi mô hình ML.
@@ -244,7 +242,7 @@ Sau khi pipeline chạy ổn, bạn sẽ có các đầu ra chính sau:
 
 1. Một kho dữ liệu cổ phiếu Việt Nam có daily metrics và annual fundamentals.
 2. Một bảng quyết định giao dịch `dwh.fact_decision`, được ghi sau khi feature hôm nay khớp combo rule BUY/SELL.
-3. Hai bảng combo rule BUY/SELL để giải thích và xác nhận decision sau bước ML.
+3. Hai bảng combo rule BUY/SELL phục vụ dự đoán phiên kế tiếp.
 4. Kết quả combo-rule matching được cập nhật trực tiếp vào `dwh.fact_decision`.
 5. Một báo cáo chất lượng dữ liệu hằng ngày để theo dõi sức khỏe hệ thống.
 
@@ -685,7 +683,7 @@ Ví dụ các cột hữu ích:
 
 ### Combo-rule tables
 
-Hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` là lớp giải thích và xác nhận sau ML:
+Hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` lưu các pattern dùng để dự đoán:
 
 - combo điều kiện nào đã được khai phá cho BUY hoặc SELL
 - confidence và lift của từng combo
