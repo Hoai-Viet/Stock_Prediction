@@ -54,8 +54,9 @@ flowchart TD
     end
 
     subgraph FP_GROWTH["⛏️ FP-Growth"]
-        F1[append_likely_rules.py<br/>Combo rules BUY / SELL]
-        F2[scan_signals.py<br/>Quét tín hiệu]
+        F0[Feature set từ ML]
+        F1[append_likely_rules.py<br/>Học pattern BUY / SELL cao]
+        F2[Combo-rule matching<br/>Quét tín hiệu]
     end
 
     subgraph DWH["🏢 Data Warehouse"]
@@ -83,7 +84,8 @@ flowchart TD
     D6 --> E1 & E2
     E2 --> G1 & G2
     E3 --> G1
-    G1 --> F1
+    E2 --> F0
+    F0 --> G6
     G6 --> F1
     F1 --> G3
     G3 --> F2
@@ -383,27 +385,27 @@ flowchart LR
 
 ---
 
-### 3.4. ⛏️ FP-Growth — Xác nhận sau ML
+### 3.4. ⛏️ FP-Growth — Học pattern từ feature ML
 
-FP-Growth chỉ chạy sau khi ML đã ghi prediction vào `dwh.fact_decision`.
+FP-Growth chỉ chạy sau bước ML. Tập feature dùng bởi mô hình được chuyển thành transaction để học các pattern có tỷ lệ BUY hoặc SELL cao.
 
 #### `append_likely_rules.py` — Cập nhật combo rules
 
 | Mục | Chi tiết |
 |-----|---------|
-| **Chức năng** | Dùng PySpark FP-Growth cập nhật combo rule BUY và SELL |
-| **Input** | `dwh.fact_txn_fp_growth_metrics` và prediction đã có từ ML |
+| **Chức năng** | Dùng PySpark FP-Growth học combo rule có tỷ lệ BUY và SELL cao |
+| **Input** | Tập feature dùng bởi ML, được chuyển thành `dwh.fact_txn_fp_growth_metrics` |
 | **Output BUY** | `dwh.fact_cal_rules_fp_growth_buy` |
 | **Output SELL** | `dwh.fact_cal_rules_fp_growth_sell` |
 | **Scoring** | Confidence, lift và tập điều kiện `x1` đến `x16` |
-| **Thứ tự** | Chỉ thực hiện sau bước ML |
+| **Thứ tự** | ML feature set → transaction → FP-Growth learning → rule tables |
 
 #### `scan_signals.py` — Quét tín hiệu
 
 | Mục | Chi tiết |
 |-----|---------|
-| **Chức năng** | Quét combo rule cho các cổ phiếu đã có prediction từ ML |
-| **Logic** | Đọc combo BUY/SELL trong database và kiểm tra các cờ điều kiện |
+| **Chức năng** | Match feature hiện tại với combo rule đã học cho các mã có prediction ML |
+| **Logic** | Đọc combo BUY/SELL trong database, kiểm tra cờ điều kiện rồi đối chiếu prediction |
 | **Cross-reference** | **Confirmed Signal** = ML BUY/SELL + combo rule tương ứng |
 | **Output** | Hiển thị + lưu vào `dwh.fact_scan` |
 | **Schedule** | Hàng ngày 15:15 ICT, step 4 (cuối) trong `stock_daily_pipeline` DAG |

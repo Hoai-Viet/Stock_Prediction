@@ -59,10 +59,14 @@ flowchart LR
     D --> E["dwh.fact_metric / marts"]
     E --> F["ML prediction<br/>BUY / SELL / SILENT"]
     F --> H["dwh.fact_decision"]
-    H --> G["FP-Growth combo-rule matching"]
-    R1["dwh.fact_cal_rules_fp_growth_buy"] --> G
-    R2["dwh.fact_cal_rules_fp_growth_sell"] --> G
-    T["dwh.fact_txn_fp_growth_metrics"] --> G
+    F --> X["Feature set used by ML"]
+    X --> T["dwh.fact_txn_fp_growth_metrics"]
+    T --> P["FP-Growth pattern learning<br/>high BUY / SELL rate"]
+    P --> R1["dwh.fact_cal_rules_fp_growth_buy"]
+    P --> R2["dwh.fact_cal_rules_fp_growth_sell"]
+    R1 --> G["Combo-rule matching"]
+    R2 --> G
+    H --> G
     H --> J["Evaluation T+1"]
     G --> K["Pattern scan"]
     K --> L["dwh.fact_scan"]
@@ -138,22 +142,23 @@ Các model nổi bật:
 
 ### 4.4. FP-Growth layer
 
-FP-Growth chỉ được thực hiện sau khi ML đã sinh prediction vào `dwh.fact_decision`.
+FP-Growth chỉ được thực hiện sau bước ML. Hệ thống lấy tập feature đã được dùng trong mô hình ML, chuyển thành transaction rule và học các tổ hợp điều kiện có tỷ lệ BUY hoặc SELL cao.
 
 `scripts/fp_growth/append_likely_rules.py`
 
-- Đọc dữ liệu giao dịch rule từ `dwh.fact_txn_fp_growth_metrics`.
-- Khai phá các combo rule BUY và SELL bằng PySpark FP-Growth.
+- Nhận tập feature dùng bởi mô hình ML.
+- Chuyển các feature/điều kiện thành transaction trong `dwh.fact_txn_fp_growth_metrics`.
+- Dùng PySpark FP-Growth học các pattern có confidence và lift BUY/SELL cao.
 - Ghi rule vào `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell`.
 - Cập nhật rule tổng hợp thông qua procedure trong database.
 
 `scripts/fp_growth/scan_signals.py`
 
-- Chỉ chạy sau bước ML.
+- Chạy sau khi ML đã sinh prediction và FP-Growth đã học xong combo rule.
 - Đọc prediction từ `dwh.fact_decision`.
 - Đọc combo rule từ hai bảng BUY/SELL trong database.
-- Quét dữ liệu ngày mới nhất.
-- Xác định combo rule phù hợp với từng mã.
+- Đưa feature hiện tại của từng mã vào bước combo-rule matching.
+- Xác định rule BUY hoặc SELL nào đang khớp.
 - Đối chiếu kết quả rule với prediction từ model chính.
 - Lưu kết quả quét vào `dwh.fact_scan`.
 
@@ -585,7 +590,7 @@ cd scripts/ml
 python update_actual_returns.py --date 2026-03-10
 ```
 
-### 13.8. Cập nhật combo rules
+### 13.8. Học combo rules từ feature ML
 
 ```bash
 cd scripts/fp_growth
@@ -594,12 +599,14 @@ python append_likely_rules.py
 
 Kết quả:
 
+- tạo transaction rule từ tập feature dùng trong ML
+- học các pattern có tỷ lệ BUY/SELL cao
 - ghi combo BUY vào `dwh.fact_cal_rules_fp_growth_buy`
 - ghi combo SELL vào `dwh.fact_cal_rules_fp_growth_sell`
 
 ### 13.9. Scan signals
 
-Chỉ chạy bước này sau khi ML đã ghi prediction vào `dwh.fact_decision`.
+Chỉ chạy bước này sau khi ML đã ghi prediction và FP-Growth đã cập nhật các combo rule.
 
 Quét ngày mới nhất:
 
