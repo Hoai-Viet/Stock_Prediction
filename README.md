@@ -211,6 +211,7 @@ stock_project/
 │       ├── components/               # Chart, topbar và providers
 │       ├── package.json
 │       └── next.config.js
+├── logo tech/                         # Logo công nghệ dùng trong README
 ├── docs/                              # Domain và ML documentation
 ├── .env.example                       # Mẫu biến môi trường
 ├── .gitignore
@@ -220,15 +221,54 @@ stock_project/
 
 ## 6. Công nghệ sử dụng
 
-| Thành phần | Công nghệ |
-|---|---|
-| Ingestion | Python, `vnstock`, RSS, `requests`, `BeautifulSoup` |
-| Database | PostgreSQL |
-| Transform | dbt |
-| ML inference | Python, `scikit-learn`, `xgboost` |
-| Pattern mining | PySpark FP-Growth |
-| Orchestration | Airflow DAGs, hoặc Windows Task Scheduler |
-| Monitoring | Python console report |
+<table>
+  <thead>
+    <tr>
+      <th>Logo</th>
+      <th>Công nghệ</th>
+      <th>Vai trò trong hệ thống</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td align="center"><img src="logo%20tech/Python--Streamline-Svg-Logos.svg" width="34" alt="Python"></td>
+      <td><strong>Python</strong></td>
+      <td>Crawling, feature engineering, ML, FP-Growth, API và monitoring</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Postgresql--Streamline-Svg-Logos.svg" width="34" alt="PostgreSQL"></td>
+      <td><strong>PostgreSQL</strong></td>
+      <td>Lưu trữ staging data, data warehouse, combo rules và predictions</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Dbt--Streamline-Svg-Logos.svg" width="34" alt="dbt"></td>
+      <td><strong>dbt</strong></td>
+      <td>Biến đổi dữ liệu, tạo technical indicators và <code>dwh.fact_metric</code></td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Apache-Spark--Streamline-Svg-Logos.svg" width="34" alt="Apache Spark"></td>
+      <td><strong>Apache Spark</strong></td>
+      <td>Chạy PySpark FP-Growth để học các combo rule BUY/SELL</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Airflow--Streamline-Svg-Logos.svg" width="34" alt="Apache Airflow"></td>
+      <td><strong>Apache Airflow</strong></td>
+      <td>Điều phối crawling, feature calculation, prediction và data quality</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Typescript-Icon--Streamline-Svg-Logos.svg" width="34" alt="TypeScript"></td>
+      <td><strong>TypeScript</strong></td>
+      <td>Ngôn ngữ chính của giao diện web</td>
+    </tr>
+    <tr>
+      <td align="center"><img src="logo%20tech/Nextjs--Streamline-Svg-Logos.svg" width="34" alt="Next.js"></td>
+      <td><strong>Next.js</strong></td>
+      <td>Frontend dashboard, biểu đồ nến và màn hình prediction</td>
+    </tr>
+  </tbody>
+</table>
+
+Các thư viện hỗ trợ chính: `vnstock`, `requests`, `BeautifulSoup`, FastAPI, SQLAlchemy, React, Tailwind CSS, Lightweight Charts, Recharts, scikit-learn và XGBoost.
 
 ## 7. Data model cốt lõi
 
