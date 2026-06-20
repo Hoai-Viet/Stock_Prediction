@@ -171,31 +171,51 @@ Các model nổi bật:
 ```text
 stock_project/
 ├── airflow/
-│   ├── dags/
-│   └── README.md
+│   ├── dags/                         # DAG crawl, feature, prediction và quality
+│   └── README.md                     # Hướng dẫn orchestration
 ├── db/
-│   ├── ddl_staging.sql
-│   ├── ddl_dw.sql
-│   ├── ddl_fact_decision.sql
+│   ├── ddl_staging.sql               # Schema dữ liệu nguồn
+│   ├── ddl_dw.sql                    # Schema data warehouse
+│   ├── ddl_fact_decision.sql         # Bảng prediction T+1
 │   ├── ddl_fact_cal_ruls_fp_growth.sql
 │   ├── ddl_news_keyword.sql
 │   └── ddl_news_sentiment.sql
 ├── dbt/
 │   ├── dbt_project.yml
 │   ├── models/
-│   │   ├── staging/
-│   │   ├── intermediate/
-│   │   └── marts/
+│   │   ├── staging/                  # Source definitions
+│   │   ├── intermediate/             # Daily price, returns, indicators
+│   │   └── marts/                    # fact_metric và serving views
 │   ├── macros/
 │   └── tests/
-├── docs/
 ├── scripts/
-│   ├── crawling/
+│   ├── crawling/                     # Intraday, BCTC, news
+│   ├── ml/                           # Training, feature selection, evaluation
 │   ├── fp_growth/
-│   ├── ml/
+│   │   ├── append_likely_rules.py    # Học combo BUY/SELL
+│   │   ├── predict.py                # Match rule và dự đoán T+1
+│   │   └── scan_signals.py
+│   ├── notifications/                # Telegram notifications
+│   ├── backfill/                     # Khôi phục và backfill feature
+│   ├── EDA/                          # Phân tích khám phá dữ liệu
 │   └── data_quality_report.py
-├── PROJECT_DOCUMENTATION.md
-└── run_backfill.py
+├── web_stock_prediction/
+│   ├── backend/
+│   │   ├── app/
+│   │   │   ├── routers/              # FastAPI endpoints
+│   │   │   ├── db.py
+│   │   │   └── main.py
+│   │   └── requirements.txt
+│   └── frontend/
+│       ├── app/                      # Next.js pages
+│       ├── components/               # Chart, topbar và providers
+│       ├── package.json
+│       └── next.config.js
+├── docs/                              # Domain và ML documentation
+├── .env.example                       # Mẫu biến môi trường
+├── .gitignore
+├── README.md
+└── PROJECT_DOCUMENTATION.md
 ```
 
 ## 6. Công nghệ sử dụng
