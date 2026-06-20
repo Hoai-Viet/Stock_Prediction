@@ -783,7 +783,264 @@ Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 7. `scripts/fp_growth/`
 8. `airflow/dags/`
 
-## 24. License và ghi chú
+## 24. Web application
+
+Project đi kèm một ứng dụng web phục vụ việc theo dõi tín hiệu và phân tích từng mã cổ phiếu.
+
+### Frontend
+
+Frontend nằm tại `web_stock_prediction/frontend` và được xây bằng:
+
+- Next.js 14 App Router
+- React 18 + TypeScript
+- Tailwind CSS
+- Lightweight Charts cho biểu đồ nến
+- Recharts cho technical indicators
+
+Các màn hình chính:
+
+- `/`: trang tổng quan và danh sách ứng viên giao dịch.
+- `/predictions`: biểu đồ nến, technical analysis, prediction hiện tại và validation history.
+- `/signals`: danh sách tín hiệu.
+- `/model-metrics`: accuracy và confusion matrix.
+- `/data-explorer`: khám phá dữ liệu từ warehouse.
+- `/news`: tin tức thị trường.
+- `/register`: đăng ký quyền truy cập.
+
+Trang prediction hỗ trợ:
+
+- Tìm kiếm mã theo ticker hoặc tên doanh nghiệp.
+- Hiển thị danh sách symbol trực tiếp từ `staging.dim_symbol`.
+- Nến ngày, tháng, quý, nửa năm, năm và toàn bộ lịch sử.
+- Zoom biểu đồ bằng con lăn chuột.
+- Technical indicators lấy từ `dwh.fact_metric`.
+- Prediction và validation history lấy từ `dwh.fact_decision`.
+- Thông báo rõ khi Airflow chưa sinh prediction mới.
+
+### Backend API
+
+Backend nằm tại `web_stock_prediction/backend` và được xây bằng FastAPI, SQLAlchemy và PostgreSQL.
+
+Chạy API local:
+
+```bash
+cd web_stock_prediction/backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Trên Windows:
+
+```powershell
+cd web_stock_prediction\backend
+python -m venv benv
+.\benv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Các nhóm endpoint chính:
+
+| Endpoint | Chức năng |
+|---|---|
+| `GET /health` | Health check |
+| `GET /api/predictions/symbols` | Danh sách mã có trong database |
+| `GET /api/predictions/candles/{symbol}` | Dữ liệu OHLC đã aggregate theo kỳ |
+| `GET /api/predictions/technical/{symbol}` | Technical indicators |
+| `GET /api/predictions/current/{symbol}` | Prediction hiện tại |
+| `GET /api/predictions/{symbol}` | Validation history |
+| `GET /api/predictions/financials/{symbol}` | Dữ liệu tài chính |
+| `GET /api/dashboard/kpis` | KPI tổng quan |
+| `GET /api/model-metrics/summary` | Model metrics |
+| `GET /api/news/latest` | Tin tức mới nhất |
+
+FastAPI Swagger UI có tại:
+
+```text
+http://localhost:8000/docs
+```
+
+### Chạy frontend local
+
+Tạo `web_stock_prediction/frontend/.env.local`:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+```
+
+Sau đó:
+
+```bash
+cd web_stock_prediction/frontend
+npm install
+npm run dev
+```
+
+Truy cập:
+
+```text
+http://localhost:3000
+```
+
+Build production:
+
+```bash
+npm run build
+npm run start -- -H 0.0.0.0 -p 3000
+```
+
+## 25. Biến môi trường
+
+Không commit `.env` thật lên GitHub. Tạo file `.env` ở root project với các biến tối thiểu:
+
+```env
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=change_me
+DB_NAME=stock_analytics
+DB_SCHEMA_STAGING=staging
+DB_SCHEMA_DWH=dwh
+
+CORS_ORIGINS=http://localhost:3000
+```
+
+Frontend production dùng:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=http://your-host:8000
+```
+
+Nếu Nginx proxy `/api` trên cùng domain, có thể đặt:
+
+```env
+NEXT_PUBLIC_API_BASE_URL=https://your-domain.example
+```
+
+## 26. Triển khai VPS 24/7
+
+Mô hình triển khai hiện tại:
+
+```mermaid
+flowchart LR
+    U["Browser"] --> N["Nginx :80/:443"]
+    N --> F["Next.js :3000"]
+    N --> B["FastAPI :8000"]
+    B --> P["PostgreSQL :5432"]
+    M["PM2 + systemd"] --> F
+    M --> B
+```
+
+### PM2 ecosystem
+
+Tạo `/opt/stock_project/web_stock_prediction/ecosystem.config.cjs`:
+
+```js
+module.exports = {
+  apps: [
+    {
+      name: "stock-frontend",
+      cwd: "/opt/stock_project/web_stock_prediction/frontend",
+      script: "node_modules/next/dist/bin/next",
+      args: "start -H 0.0.0.0 -p 3000",
+      interpreter: "node",
+      env: { NODE_ENV: "production" },
+      autorestart: true
+    },
+    {
+      name: "stock-backend",
+      cwd: "/opt/stock_project/web_stock_prediction/backend",
+      script: "benv/bin/uvicorn",
+      args: "app.main:app --host 0.0.0.0 --port 8000",
+      interpreter: "none",
+      autorestart: true
+    }
+  ]
+};
+```
+
+Tên virtualenv có thể là `venv` hoặc `benv`; chỉnh `script` theo môi trường thực tế trên server.
+
+Khởi động và lưu process:
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+Kiểm tra:
+
+```bash
+pm2 status
+systemctl status pm2-root
+curl http://127.0.0.1:3000
+curl http://127.0.0.1:8000/health
+```
+
+Khi cập nhật frontend:
+
+```bash
+cd /opt/stock_project/web_stock_prediction/frontend
+npm install
+npm run build
+pm2 restart stock-frontend
+```
+
+Khi cập nhật backend:
+
+```bash
+cd /opt/stock_project/web_stock_prediction/backend
+source benv/bin/activate
+pip install -r requirements.txt
+pm2 restart stock-backend
+```
+
+### Nginx reverse proxy
+
+Ví dụ cấu hình:
+
+```nginx
+server {
+    listen 80;
+    server_name stock.example.com;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+IP thuộc dải `172.16.0.0/12`, `10.0.0.0/8` hoặc `192.168.0.0/16` là IP private. Muốn công khai cho Internet cần public IP, DNS domain và mở port `80/443`.
+
+## 27. Bảo mật trước khi public
+
+Trước mỗi lần push hoặc deploy:
+
+1. Không commit `.env`, API key, database password hoặc private key.
+2. Không commit `node_modules`, virtualenv, `.next`, dbt target và Airflow logs.
+3. Không mở PostgreSQL `5432` ra Internet nếu không thực sự cần.
+4. Giới hạn `CORS_ORIGINS` theo domain frontend.
+5. Dùng HTTPS với Certbot khi có domain public.
+6. Thay các mật khẩu đã từng xuất hiện trong terminal hoặc repository history.
+7. Chạy `git status` và kiểm tra từng file trước khi commit.
+
+## 28. License và ghi chú
 
 Repo hiện chưa thấy file `LICENSE` ở root. Nếu bạn định public project này trên GitHub, nên bổ sung license phù hợp và che toàn bộ secrets trong `.env` trước khi push.
-"# Stock_Prediction" 

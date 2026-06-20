@@ -1,0 +1,76 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Python virtual environments
+venv/
+.venv/
+benv/
+*venv/
+airflow_venv/
+dbt_venv/
+cr_venv/
+ml_venv/
+fpvenv/
+
+# Node / Next.js
+node_modules/
+.next/
+.next-build/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# dbt and Airflow runtime output
+dbt/target/
+dbt/logs/
+dbt/.user.yml
+airflow/logs/
+airflow/airflow.db
+airflow/airflow.cfg
+airflow/webserver_config.py
+
+# Generated data, models and reports
+logs/
+*.log
+*.pid
+*.tmp
+*.cache
+*.parquet
+*.feather
+*.joblib
+*.pkl
+*.csv
+*.xlsx
+
+# Editors and operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+GEMINI.md
+
+# Local tool/template metadata
+.agents/
+.codex/
+web_stock_prediction/.git.stitch-backup/
+web_stock_prediction/stitch-skills/

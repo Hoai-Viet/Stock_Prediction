@@ -1,0 +1,80 @@
+@import "tailwindcss";
+@config "../tailwind.config.ts";
+
+@layer base {
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary antialiased font-sans;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(21, 33, 47, 0.42) #eef2f6;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: #eef2f6;
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, rgba(21, 33, 47, 0.88), rgba(82, 97, 115, 0.78));
+    border: 2px solid #eef2f6;
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #15212f, #526173);
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+@layer components {
+  .bg-bg-card {
+    box-shadow: 0 10px 30px rgba(21, 33, 47, 0.08);
+  }
+
+  .bg-bg-card .text-white {
+    color: #15212f !important;
+  }
+
+  .bg-bg-card .text-gray-200,
+  .bg-bg-card .text-gray-300,
+  .bg-bg-card .text-gray-400,
+  .bg-bg-card .text-gray-500 {
+    color: #526173 !important;
+  }
+
+  .bg-bg-card [class*="bg-white/"] {
+    background-color: #f8fafc !important;
+  }
+
+  .bg-bg-card [class*="border-white/"] {
+    border-color: #d9e0ea !important;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

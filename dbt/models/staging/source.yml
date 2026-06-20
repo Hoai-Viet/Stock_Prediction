@@ -1,0 +1,18 @@
+version: 2
+sources:
+  - name: stg
+    schema: staging
+    tables:
+      - name: fact_stock_price_intraday
+      - name: dim_symbol
+      - name: fact_financials
+      - name: fact_news_article
+      - name: bridge_news_symbol
+
+  - name: dwh
+    schema: dwh
+    tables:
+      - name: fact_decision
+      - name: fact_metric
+      - name: fact_feature_pair_signal
+      - name: fact_news_sentiment_daily

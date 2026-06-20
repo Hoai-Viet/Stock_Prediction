@@ -1,0 +1,3 @@
+-- DEPRECATED
+-- fact_decision_evaluation is no longer used.
+-- Evaluation fields are stored directly in dwh.fact_decision.

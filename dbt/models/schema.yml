@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: dim_metric
+    description: "Dimension table for metric metadata"
+    columns:
+      - name: metric_key
+        tests:
+          - unique
+          - not_null
+      - name: metric_code
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_metric
+    description: "Long-format metric table with one row per metric per symbol, date, and period type"
+    columns:
+      - name: symbol_key
+        tests:
+          - not_null
+      - name: period_date
+        tests:
+          - not_null
+      - name: period_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['daily', 'annual']
+      - name: metric_key
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_metric')
+                field: metric_key
+      - name: metric_value
+        tests:
+          - not_null
+
+  - name: mart_decision
+    description: "ML trading predictions exposed for reporting"
+    columns:
+      - name: symbol_key
+        tests:
+          - not_null
+      - name: trade_date
+        tests:
+          - not_null
+      - name: predicted_label
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['BUY', 'SELL', 'SILENT']
+
+  - name: mart_news_sentiment
+    description: "Daily news sentiment features exposed for reporting"
+    columns:
+      - name: trade_date
+        tests:
+          - not_null
+      - name: period_scope
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['symbol', 'market']
