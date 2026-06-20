@@ -735,32 +735,7 @@ dbt test --select fact_metric int_price_daily
 5. Airflow DAG mô tả lịch chạy và path khá rõ, nhưng nếu chạy trên Windows native sẽ dễ gặp vấn đề môi trường.
 6. Notebook training chưa được chuyển hoàn toàn thành training pipeline reproducible qua CLI.
 
-## 20. Hướng mở rộng nên làm tiếp
-
-Nếu muốn đưa project này lên mức production hoặc portfolio mạnh hơn, nên ưu tiên:
-
-1. Tạo `train_model.py` chính thức thay cho notebook.
-2. Chuẩn hóa một `root .env.example` duy nhất.
-3. Định nghĩa rõ `fact_cleaned_metric` trong dbt hoặc thay `predict.py` sang đọc trực tiếp `fact_metric`.
-4. Thêm `docker-compose` cho Postgres + Airflow + dbt runtime.
-5. Thêm dashboard BI cho `fact_decision`, `fact_scan`, data quality.
-6. Thêm CI để chạy `dbt test`, lint và smoke test scripts.
-7. Chuẩn hóa unit/integration tests cho crawler và feature engineering.
-
-## 21. Repo này phù hợp để showcase gì trong portfolio
-
-Project này showcase được khá nhiều năng lực cùng lúc:
-
-- Data engineering
-- Analytics engineering
-- ML for tabular data
-- Feature store thinking
-- Pattern mining / explainability
-- Workflow orchestration
-- Data quality monitoring
-- Domain knowledge về chứng khoán Việt Nam
-
-## 22. Tham khảo khi viết README này
+## 20. Tham khảo khi viết README này
 
 README này được tổ chức theo hướng rõ mục tiêu, quick start, architecture, data model, output và operational notes. Bố cục được tham khảo tinh thần từ các README/data project public trên GitHub và tài liệu chính thức của các ecosystem liên quan, đặc biệt là:
 
@@ -770,7 +745,7 @@ README này được tổ chức theo hướng rõ mục tiêu, quick start, arc
 
 Phần nội dung nghiệp vụ, luồng dữ liệu và caveat triển khai trong README này được đối chiếu chủ yếu từ chính codebase hiện tại của repo.
 
-## 23. Gợi ý thứ tự đọc repo
+## 21. Gợi ý thứ tự đọc repo
 
 Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 
@@ -783,7 +758,7 @@ Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 7. `scripts/fp_growth/`
 8. `airflow/dags/`
 
-## 24. Web application
+## 22. Web application
 
 Project đi kèm một ứng dụng web phục vụ việc theo dõi tín hiệu và phân tích từng mã cổ phiếu.
 
@@ -891,7 +866,7 @@ npm run build
 npm run start -- -H 0.0.0.0 -p 3000
 ```
 
-## 25. Biến môi trường
+## 23. Biến môi trường
 
 Không commit `.env` thật lên GitHub. Tạo file `.env` ở root project với các biến tối thiểu:
 
@@ -913,7 +888,7 @@ Frontend production dùng:
 NEXT_PUBLIC_API_BASE_URL=http://your-host:8000
 ```
 
-## 26. Bảo mật trước khi public
+## 24. Bảo mật trước khi public
 
 Trước mỗi lần push hoặc deploy:
 
@@ -924,6 +899,6 @@ Trước mỗi lần push hoặc deploy:
 5. Thay các mật khẩu đã từng xuất hiện trong terminal hoặc repository history.
 6. Chạy `git status` và kiểm tra từng file trước khi commit.
 
-## 27. License và ghi chú
+## 25. License và ghi chú
 
 Repo hiện chưa thấy file `LICENSE` ở root. Nếu bạn định public project này trên GitHub, nên bổ sung license phù hợp và che toàn bộ secrets trong `.env` trước khi push.
