@@ -1,6 +1,6 @@
 # 📊 Stock Trading AI Pipeline — Tài liệu tổng quan dự án
 
-> **Mục tiêu**: Hệ thống end-to-end tự động crawl dữ liệu chứng khoán, xây dựng features, huấn luyện mô hình ML dự đoán tín hiệu giao dịch (BUY / SELL / SILENT) trong **T+3 ngày giao dịch**, khai phá pattern bằng FP-Growth, và quét tín hiệu xác nhận hàng ngày.
+> **Mục tiêu**: Hệ thống end-to-end tự động crawl dữ liệu chứng khoán, xây dựng features, huấn luyện mô hình ML dự đoán tín hiệu giao dịch (BUY / SELL / SILENT) cho **phiên giao dịch kế tiếp (T+1)**, sau đó dùng combo rule FP-Growth để quét tín hiệu xác nhận.
 
 > [!IMPORTANT]
 > **Luôn kích hoạt virtual environment (venv) tương ứng trước khi chạy script trong từng folder:**
@@ -50,20 +50,21 @@ flowchart TD
     subgraph ML["🤖 ML Pipeline"]
         E1[train_model.py<br/>XGBoost / RF / LR]
         E2[predict.py<br/>Dự đoán hàng ngày]
-        E3[update_actual_returns.py<br/>Đánh giá T+3]
+        E3[update_actual_returns.py<br/>Đánh giá T+1]
     end
 
     subgraph FP_GROWTH["⛏️ FP-Growth"]
-        F1[mine_feature_pairs.py<br/>Khai phá pattern]
+        F1[append_likely_rules.py<br/>Combo rules BUY / SELL]
         F2[scan_signals.py<br/>Quét tín hiệu]
     end
 
     subgraph DWH["🏢 Data Warehouse"]
         G1[fact_decision<br/>Predictions]
         G2[fact_position<br/>Vị thế]
-        G3[fact_feature_pair_signal<br/>FP patterns]
+        G3[fact_cal_rules_fp_growth_buy/sell<br/>Combo rules]
         G4[fact_scan<br/>Kết quả quét]
         G5[fact_news_sentiment_daily]
+        G6[fact_txn_fp_growth_metrics<br/>Rule transactions]
     end
 
     A1 --> B1 & B2
@@ -83,10 +84,11 @@ flowchart TD
     E2 --> G1 & G2
     E3 --> G1
     G1 --> F1
+    G6 --> F1
     F1 --> G3
     G3 --> F2
     F2 --> G4
-    E2 --> F2
+    G1 --> F2
 ```
 
 ---
@@ -99,8 +101,8 @@ stock_project/
 │   ├── stock_daily_pipeline_dag.py  # Pipeline chính hàng ngày
 │   ├── crawl_bctc_dag.py            # Crawl báo cáo tài chính
 │   ├── crawl_news_dag.py            # Crawl tin tức + build features
-│   ├── ml_evaluate_dag.py           # Đánh giá predictions (T+3)
-│   └── ml_weekly_maintenance_dag.py # Retrain + Mine patterns
+│   ├── ml_evaluate_dag.py           # Đánh giá predictions (T+1)
+│   └── ml_weekly_maintenance_dag.py # Retrain + cập nhật combo rules
 │
 ├── scripts/
 │   ├── crawling/                    # Các script crawl dữ liệu
@@ -112,13 +114,13 @@ stock_project/
 │   ├── ml/                          # Machine Learning
 │   │   ├── train_model.py           # Huấn luyện model (XGBoost/RF/LR)
 │   │   ├── predict.py               # Dự đoán hàng ngày + entry timing
-│   │   ├── update_actual_returns.py  # Đánh giá accuracy sau T+3
+│   │   ├── update_actual_returns.py  # Đánh giá accuracy sau T+1
 │   │   ├── evaluate_features.py     # Đánh giá chất lượng features
 │   │   └── models/                  # Saved model artifacts
 │   │
-│   ├── fp_growth/                   # FP-Growth pattern mining
-│   │   ├── mine_feature_pairs.py    # Khai phá cặp feature highwin
-│   │   └── scan_signals.py          # Quét stock khớp pattern
+│   ├── fp_growth/                   # Combo-rule matching sau ML
+│   │   ├── append_likely_rules.py   # Cập nhật combo BUY / SELL
+│   │   └── scan_signals.py          # Quét xác nhận sau prediction
 │   │
 │   └── data_quality_report.py       # Báo cáo chất lượng dữ liệu
 │
@@ -134,7 +136,6 @@ stock_project/
 │           ├── dim_metric.sql       # 62 metric definitions
 │           ├── fact_metric.sql      # Metric values (daily + quarterly)
 │           ├── mart_decision.sql
-│           ├── mart_feature_pair_signal.sql
 │           └── mart_news_sentiment.sql
 │
 ├── db/                              # DDL scripts cho PostgreSQL
@@ -322,7 +323,7 @@ flowchart LR
 | Mục | Chi tiết |
 |-----|---------|
 | **Bài toán** | Phân loại 3 lớp: **BUY** / **SELL** / **SILENT** |
-| **Horizon** | `FORWARD_HORIZON = 3` (T+3 ngày giao dịch) |
+| **Horizon** | `FORWARD_HORIZON = 1` (phiên giao dịch kế tiếp) |
 | **Label** | BUY: future_return ≥ +2%, SELL: ≤ -2%, SILENT: còn lại |
 | **Models** | So sánh 3 model: Logistic Regression, Random Forest, **XGBoost** |
 | **Metric** | Chọn model tốt nhất theo **Macro F1 Score** |
@@ -370,8 +371,8 @@ flowchart LR
 
 | Mục | Chi tiết |
 |-----|---------|
-| **Chức năng** | So sánh prediction với thực tế sau **T+3 ngày giao dịch** |
-| **Logic** | Lấy giá entry (close cuối ngày predict) và exit (close cuối ngày T+3) từ `fact_stock_price_intraday` |
+| **Chức năng** | So sánh prediction với thực tế ở **phiên giao dịch kế tiếp (T+1)** |
+| **Logic** | Lấy giá entry ngày predict và giá close của phiên kế tiếp (T+1) từ `fact_stock_price_intraday` |
 | **Đánh giá** | actual_return ≥ +2% → BUY, ≤ -2% → SELL, else SILENT |
 | **is_correct** | `predicted_label == actual_direction` |
 | **Cập nhật** | UPDATE `dwh.fact_decision` SET actual_direction, is_correct, evaluated_at |
@@ -382,28 +383,28 @@ flowchart LR
 
 ---
 
-### 3.4. ⛏️ FP-Growth — Khai phá pattern
+### 3.4. ⛏️ FP-Growth — Xác nhận sau ML
 
-#### `mine_feature_pairs.py` — Mining
+FP-Growth chỉ chạy sau khi ML đã ghi prediction vào `dwh.fact_decision`.
+
+#### `append_likely_rules.py` — Cập nhật combo rules
 
 | Mục | Chi tiết |
 |-----|---------|
-| **Chức năng** | Dùng FP-Growth (PySpark MLlib) tìm **cặp feature** có win rate cao |
-| **Input** | Predictions đã đánh giá (BUY/SELL có actual_direction) + metric values |
-| **Discretize** | Chia mỗi feature thành 3 bins (quantile): `feature_q1/q2/q3` |
-| **Feature Ranking** | Score = |win_rate - baseline| × log(coverage), chọn top 30 features |
-| **Mining** | FP-Growth: min_support=3%, min_confidence=10% |
-| **Scoring** | Win rate, lift vs baseline, coverage ≥ 20 |
-| **Output** | Top 50 pairs → `dwh.fact_feature_pair_signal` |
-| **Schedule** | Hàng tuần Chủ nhật 3:00 AM (sau train_model), trong `ml_weekly_maintenance` DAG |
+| **Chức năng** | Dùng PySpark FP-Growth cập nhật combo rule BUY và SELL |
+| **Input** | `dwh.fact_txn_fp_growth_metrics` và prediction đã có từ ML |
+| **Output BUY** | `dwh.fact_cal_rules_fp_growth_buy` |
+| **Output SELL** | `dwh.fact_cal_rules_fp_growth_sell` |
+| **Scoring** | Confidence, lift và tập điều kiện `x1` đến `x16` |
+| **Thứ tự** | Chỉ thực hiện sau bước ML |
 
 #### `scan_signals.py` — Quét tín hiệu
 
 | Mục | Chi tiết |
 |-----|---------|
-| **Chức năng** | Quét tất cả cổ phiếu xem có khớp top FP-Growth patterns không |
-| **Logic** | Load rules (win_rate ≥ 70%), discretize latest metrics, check match |
-| **Cross-reference** | So sánh với model predictions → **Confirmed Signal** = ML BUY/SELL + Pattern match |
+| **Chức năng** | Quét combo rule cho các cổ phiếu đã có prediction từ ML |
+| **Logic** | Đọc combo BUY/SELL trong database và kiểm tra các cờ điều kiện |
+| **Cross-reference** | **Confirmed Signal** = ML BUY/SELL + combo rule tương ứng |
 | **Output** | Hiển thị + lưu vào `dwh.fact_scan` |
 | **Schedule** | Hàng ngày 15:15 ICT, step 4 (cuối) trong `stock_daily_pipeline` DAG |
 
@@ -444,18 +445,18 @@ flowchart LR
 | Schedule | `0 8 * * 1-5` (8:00 AM, Thứ 2–6) |
 |----------|------|
 | **Flow** | `evaluate_predictions` → chạy `update_actual_returns.py` |
-| **Mô tả** | Đánh giá predictions sau T+3 ngày giao dịch |
+| **Mô tả** | Đánh giá predictions ở phiên giao dịch kế tiếp (T+1) |
 
 ### 4.5. `ml_weekly_maintenance` — Bảo trì hàng tuần
 
 ```mermaid
 flowchart LR
-    A[train_trading_model] --> B[mine_feature_pairs]
+    A[train_trading_model] --> B[append_likely_rules]
 ```
 
 | Schedule | `0 3 * * 0` (3:00 AM Chủ nhật) |
 |----------|------|
-| **Mô tả** | Retrain model + khai phá lại FP-Growth patterns |
+| **Mô tả** | Retrain model, sau đó cập nhật combo rule BUY/SELL |
 
 ### 4.6. `data_quality_report` — Báo cáo chất lượng dữ liệu
 
@@ -487,7 +488,9 @@ dwh (data warehouse):
 ├── fact_decision           # ML predictions + evaluation results
 ├── fact_position           # Position tracking (mở/đóng vị thế)
 ├── fact_news_sentiment_daily  # Daily sentiment features
-├── fact_feature_pair_signal   # FP-Growth mined patterns
+├── fact_txn_fp_growth_metrics # Transaction dữ liệu cho combo rules
+├── fact_cal_rules_fp_growth_buy  # Combo rules xác nhận BUY
+├── fact_cal_rules_fp_growth_sell # Combo rules xác nhận SELL
 └── fact_scan               # Kết quả scan tín hiệu
 ```
 
@@ -499,7 +502,7 @@ dwh (data warehouse):
 
 | Parameter | Giá trị | Mô tả |
 |-----------|---------|-------|
-| `FORWARD_HORIZON` | **3** | Dự đoán cho 3 ngày giao dịch tới |
+| `FORWARD_HORIZON` | **1** | Dự đoán cho phiên giao dịch kế tiếp |
 | `BUY_THRESHOLD` | 0.02 | Return ≥ +2% → BUY |
 | `SELL_THRESHOLD` | -0.02 | Return ≤ -2% → SELL |
 | `SILENT_WEIGHT_MULTIPLIER` | 2.0 | Boost weight cho class SILENT |
@@ -529,7 +532,7 @@ dwh (data warehouse):
 ⏰ 15:15  stock_daily_pipeline:
            1️⃣ Crawl intraday (giá nến 1 phút sau đóng cửa)
            2️⃣ dbt run (tính technical indicators + metrics)
-           3️⃣ ML predict (dự đoán BUY/SELL/SILENT cho T+3)
+           3️⃣ ML predict (dự đoán BUY/SELL/SILENT cho T+1)
            4️⃣ FP scan signals (quét stocks khớp patterns)
 
 🔄 Chủ nhật 03:00  ml_weekly_maintenance:

@@ -5,7 +5,7 @@ Nền tảng dữ liệu và AI cho chứng khoán Việt Nam, tập trung vào 
 - Thu thập dữ liệu giá intraday, báo cáo tài chính ngân hàng và tin tức tài chính.
 - Chuẩn hóa và tổng hợp dữ liệu bằng PostgreSQL + dbt.
 - Sinh tín hiệu giao dịch `BUY` / `SELL` / `SILENT` bằng mô hình machine learning.
-- Khai phá các cặp đặc trưng có xác suất thắng cao bằng FP-Growth để làm lớp xác nhận tín hiệu.
+- Dùng các combo rule FP-Growth sau bước ML để xác nhận và giải thích tín hiệu.
 - Theo dõi chất lượng dữ liệu hằng ngày để phát hiện sớm lỗi crawl, thiếu coverage hoặc đứt pipeline.
 
 ## 1. Mục tiêu của project
@@ -16,7 +16,7 @@ Project được xây để trả lời 4 câu hỏi chính:
 
 1. Mỗi ngày thị trường đóng cửa xong, có thể tự động gom đủ dữ liệu đầu vào cho quyết định giao dịch ngày kế tiếp hay không?
 2. Từ dữ liệu giá, technical indicators, fundamentals và sentiment news, có thể gán nhãn hành động `BUY` / `SELL` / `SILENT` cho từng mã không?
-3. Ngoài mô hình ML chính, có thể tìm được các pattern feature pair có win-rate cao để dùng như lớp xác nhận độc lập không?
+3. Sau khi mô hình ML sinh dự đoán, combo rule FP-Growth nào có thể xác nhận hoặc bổ sung ngữ cảnh cho tín hiệu đó?
 4. Sau vài ngày giao dịch, hệ thống có thể tự đánh giá prediction đã đúng hay sai và theo dõi chất lượng pipeline không?
 
 ### Technical goal
@@ -27,7 +27,7 @@ Repo này được tổ chức như một mini data platform:
 - `db`: DDL để dựng schema nguồn và kho dữ liệu.
 - `dbt`: mô hình hóa dữ liệu cho analytics và ML serving.
 - `scripts/ml`: suy luận mô hình và đánh giá lại prediction.
-- `scripts/fp_growth`: khai phá pattern và quét tín hiệu.
+- `scripts/fp_growth`: xử lý combo rule và quét xác nhận sau bước ML.
 - `airflow/dags`: orchestration lịch chạy.
 - `scripts/data_quality_report.py`: lớp quan sát chất lượng dữ liệu.
 
@@ -58,12 +58,13 @@ flowchart LR
     C --> D["dbt transformations<br/>price + returns + technical + fundamentals + news metrics"]
     D --> E["dwh.fact_metric / marts"]
     E --> F["ML prediction<br/>BUY / SELL / SILENT"]
-    E --> G["FP-Growth mining"]
     F --> H["dwh.fact_decision"]
-    G --> I["dwh.fact_feature_pair_signal"]
+    H --> G["FP-Growth combo-rule matching"]
+    R1["dwh.fact_cal_rules_fp_growth_buy"] --> G
+    R2["dwh.fact_cal_rules_fp_growth_sell"] --> G
+    T["dwh.fact_txn_fp_growth_metrics"] --> G
     H --> J["Evaluation T+1"]
-    H --> K["Pattern scan"]
-    I --> K
+    G --> K["Pattern scan"]
     K --> L["dwh.fact_scan"]
     B --> M["crawl_log"]
     H --> N["data_quality_report"]
@@ -137,19 +138,23 @@ Các model nổi bật:
 
 ### 4.4. FP-Growth layer
 
-`scripts/fp_growth/mine_feature_pairs.py`
+FP-Growth chỉ được thực hiện sau khi ML đã sinh prediction vào `dwh.fact_decision`.
 
-- Lấy các prediction lịch sử đã được đánh giá.
-- Rời rạc hóa feature liên tục thành bins.
-- Dùng PySpark FP-Growth để tìm pair rules có `win_rate` và `lift` tốt.
-- Lưu kết quả vào `dwh.fact_feature_pair_signal`.
+`scripts/fp_growth/append_likely_rules.py`
+
+- Đọc dữ liệu giao dịch rule từ `dwh.fact_txn_fp_growth_metrics`.
+- Khai phá các combo rule BUY và SELL bằng PySpark FP-Growth.
+- Ghi rule vào `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell`.
+- Cập nhật rule tổng hợp thông qua procedure trong database.
 
 `scripts/fp_growth/scan_signals.py`
 
-- Đọc top rules đã mine.
+- Chỉ chạy sau bước ML.
+- Đọc prediction từ `dwh.fact_decision`.
+- Đọc combo rule từ hai bảng BUY/SELL trong database.
 - Quét dữ liệu ngày mới nhất.
-- Xác định mã nào khớp pattern.
-- Đối chiếu với prediction từ model chính.
+- Xác định combo rule phù hợp với từng mã.
+- Đối chiếu kết quả rule với prediction từ model chính.
 - Lưu kết quả quét vào `dwh.fact_scan`.
 
 ### 4.5. Monitoring layer
@@ -173,7 +178,7 @@ stock_project/
 │   ├── ddl_staging.sql
 │   ├── ddl_dw.sql
 │   ├── ddl_fact_decision.sql
-│   ├── ddl_fact_feature_pair_signal.sql
+│   ├── ddl_fact_cal_ruls_fp_growth.sql
 │   ├── ddl_fact_scan.sql
 │   ├── ddl_news_keyword.sql
 │   └── ddl_news_sentiment.sql
@@ -229,7 +234,9 @@ Các bảng quan trọng:
 - `dwh.fact_metric`: metric table trung tâm cho giá, return, technical, fundamentals, news features.
 - `dwh.fact_news_sentiment_daily`: sentiment feature theo ngày.
 - `dwh.fact_decision`: kết quả prediction của model.
-- `dwh.fact_feature_pair_signal`: top pair patterns sau khi mine.
+- `dwh.fact_txn_fp_growth_metrics`: dữ liệu transaction dùng để khai phá combo rule.
+- `dwh.fact_cal_rules_fp_growth_buy`: combo rule xác nhận tín hiệu BUY.
+- `dwh.fact_cal_rules_fp_growth_sell`: combo rule xác nhận tín hiệu SELL.
 - `dwh.fact_scan`: kết quả quét pattern theo ngày.
 
 ## 8. Kết quả đầu ra của project
@@ -238,7 +245,7 @@ Sau khi pipeline chạy ổn, bạn sẽ có các đầu ra chính sau:
 
 1. Một kho dữ liệu cổ phiếu Việt Nam có daily metrics và annual fundamentals.
 2. Một bảng quyết định giao dịch `dwh.fact_decision` để phục vụ dashboard hoặc downstream services.
-3. Một bảng pattern signals `dwh.fact_feature_pair_signal` để giải thích và xác nhận decision.
+3. Hai bảng combo rule BUY/SELL để giải thích và xác nhận decision sau bước ML.
 4. Một bảng `dwh.fact_scan` cho biết hôm nay mã nào đang match pattern tốt.
 5. Một báo cáo chất lượng dữ liệu hằng ngày để theo dõi sức khỏe hệ thống.
 
@@ -307,7 +314,7 @@ Thứ tự khuyến nghị:
 3. `db/ddl_news_keyword.sql`
 4. `db/ddl_news_sentiment.sql`
 5. `db/ddl_fact_decision.sql`
-6. `db/ddl_fact_feature_pair_signal.sql`
+6. `db/ddl_fact_cal_ruls_fp_growth.sql`
 7. `db/ddl_fact_scan.sql`
 
 `db/ddl_dw.sql` là tài liệu DWH cũ hơn và có giá trị tham khảo, nhưng nếu dùng dbt làm nguồn chân lý cho `fact_metric` và marts thì bạn nên ưu tiên schema do dbt materialize.
@@ -578,18 +585,21 @@ cd scripts/ml
 python update_actual_returns.py --date 2026-03-10
 ```
 
-### 13.8. Mine feature pairs
+### 13.8. Cập nhật combo rules
 
 ```bash
 cd scripts/fp_growth
-python mine_feature_pairs.py
+python append_likely_rules.py
 ```
 
 Kết quả:
 
-- ghi top patterns vào `dwh.fact_feature_pair_signal`
+- ghi combo BUY vào `dwh.fact_cal_rules_fp_growth_buy`
+- ghi combo SELL vào `dwh.fact_cal_rules_fp_growth_sell`
 
 ### 13.9. Scan signals
+
+Chỉ chạy bước này sau khi ML đã ghi prediction vào `dwh.fact_decision`.
 
 Quét ngày mới nhất:
 
@@ -689,14 +699,14 @@ Ví dụ các cột hữu ích:
 - `model_version`
 - `entry_window`
 
-### `dwh.fact_feature_pair_signal`
+### Combo-rule tables
 
-Đây là lớp giải thích / xác nhận:
+Hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` là lớp giải thích và xác nhận sau ML:
 
-- pattern nào historically có win-rate cao
-- coverage bao nhiêu
-- lift so với baseline như thế nào
-- pattern đang thiên về `BUY` hay `SELL`
+- combo điều kiện nào đã được khai phá cho BUY hoặc SELL
+- confidence và lift của từng combo
+- các cờ `x1` đến `x16` xác định điều kiện bắt buộc của rule
+- rule nào đang khớp với prediction hiện tại
 
 ### `dwh.fact_scan`
 
@@ -721,7 +731,7 @@ dbt test --select fact_metric int_price_daily
 2. Kiểm tra số lượng mã active có đủ trong `staging.dim_symbol`.
 3. Kiểm tra `dwh.fact_metric` có cập nhật tới ngày mới nhất hay chưa.
 4. Kiểm tra `dwh.fact_decision` đã có prediction cho ngày gần nhất chưa.
-5. Kiểm tra `dwh.fact_feature_pair_signal` có dữ liệu sau weekly mining chưa.
+5. Kiểm tra hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` có dữ liệu chưa.
 6. Kiểm tra `dwh.fact_scan` có kết quả match sau scan chưa.
 
 ## 19. Các known issues / rủi ro kỹ thuật

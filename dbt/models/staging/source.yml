@@ -14,5 +14,4 @@ sources:
     tables:
       - name: fact_decision
       - name: fact_metric
-      - name: fact_feature_pair_signal
       - name: fact_news_sentiment_daily
