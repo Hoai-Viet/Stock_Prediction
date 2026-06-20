@@ -126,8 +126,6 @@ Các model nổi bật:
 
 ### 4.3. ML layer
 
-ML không ghi trực tiếp vào `dwh.fact_decision`.
-
 - Huấn luyện và đánh giá mô hình trên dữ liệu lịch sử.
 - Xác định tập feature có giá trị cho bài toán dự báo T+1.
 - Chuyển tập feature/điều kiện đã chọn thành dữ liệu transaction cho FP-Growth.
@@ -557,7 +555,7 @@ Repo hiện có test kiểm tra:
 
 ### 13.6. ML training và feature selection
 
-ML được dùng để huấn luyện, đánh giá và xác định tập feature đầu vào cho FP-Growth. Bước này không ghi prediction vào `dwh.fact_decision`.
+ML được dùng để huấn luyện, đánh giá và xác định tập feature đầu vào cho FP-Growth.
 
 ### 13.7. Đánh giá prediction sau T+1
 

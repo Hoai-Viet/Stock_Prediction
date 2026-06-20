@@ -357,7 +357,7 @@ flowchart LR
 
 #### ML training và feature selection
 
-ML được dùng để huấn luyện, đánh giá và lựa chọn tập feature phục vụ FP-Growth. ML không ghi trực tiếp prediction vào `dwh.fact_decision`.
+ML được dùng để huấn luyện, đánh giá và lựa chọn tập feature phục vụ FP-Growth.
 
 #### `update_actual_returns.py` — Đánh giá predictions
 
