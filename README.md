@@ -8,8 +8,6 @@ Nền tảng dữ liệu và AI cho chứng khoán Việt Nam, tập trung vào 
 - Khai phá các cặp đặc trưng có xác suất thắng cao bằng FP-Growth để làm lớp xác nhận tín hiệu.
 - Theo dõi chất lượng dữ liệu hằng ngày để phát hiện sớm lỗi crawl, thiếu coverage hoặc đứt pipeline.
 
-Project này phù hợp nếu bạn muốn xây một hệ thống dữ liệu thực chiến cho bài toán stock analytics/trading research, thay vì chỉ dừng ở notebook phân tích đơn lẻ.
-
 ## 1. Mục tiêu của project
 
 ### Business goal
@@ -38,7 +36,7 @@ Repo này được tổ chức như một mini data platform:
 Thay vì dự đoán giá đóng cửa tuyệt đối, project đang đi theo hướng thực dụng hơn:
 
 - Gom feature hằng ngày cho từng mã.
-- Dùng model phân loại để dự báo hướng biến động sau `T+3` ngày giao dịch.
+- Dùng model phân loại để dự báo hướng biến động của phiên giao dịch kế tiếp (`T+1`).
 - Chuyển kết quả sang dạng quyết định hành động:
   - `BUY`: kỳ vọng tăng đủ mạnh.
   - `SELL`: kỳ vọng giảm đủ mạnh.
@@ -63,7 +61,7 @@ flowchart LR
     E --> G["FP-Growth mining"]
     F --> H["dwh.fact_decision"]
     G --> I["dwh.fact_feature_pair_signal"]
-    H --> J["Evaluation T+3"]
+    H --> J["Evaluation T+1"]
     H --> K["Pattern scan"]
     I --> K
     K --> L["dwh.fact_scan"]
@@ -133,8 +131,8 @@ Các model nổi bật:
 `scripts/ml/update_actual_returns.py`
 
 - Lấy prediction ở ngày `T`.
-- Chờ đủ `T+3` phiên giao dịch.
-- Đối chiếu với `return_3d` / `return_next_3d` trong kho dữ liệu.
+- Chờ dữ liệu của phiên giao dịch kế tiếp (`T+1`).
+- Đối chiếu với `return_1d` / `return_next_1d` trong kho dữ liệu.
 - Cập nhật `actual_direction`, `is_correct`, `evaluated_at`.
 
 ### 4.4. FP-Growth layer
@@ -471,7 +469,7 @@ Nếu bạn chỉ muốn dựng thử pipeline end-to-end nhanh nhất, làm the
 6. Chạy `dbt run`.
 7. Chạy `predict.py`.
 8. Chạy `scan_signals.py`.
-9. Sau đủ 3 phiên giao dịch, chạy `update_actual_returns.py`.
+9. Sau khi có dữ liệu phiên giao dịch kế tiếp, chạy `update_actual_returns.py`.
 10. Chạy `data_quality_report.py` để kiểm tra hệ thống.
 
 ## 13. Cách chạy từng phần
@@ -564,7 +562,7 @@ Script sẽ:
 - suy luận prediction
 - upsert vào `dwh.fact_decision`
 
-### 13.7. Đánh giá prediction sau T+3
+### 13.7. Đánh giá prediction sau T+1
 
 Mặc định script tự tìm ngày cần đánh giá:
 
@@ -663,7 +661,7 @@ Từ notebook và artifacts hiện có, project đang dùng hướng tiếp cậ
   - `0 = SILENT`
   - `1 = BUY`
   - `2 = SELL`
-- target được sinh từ `return_next_3d`
+- target được sinh từ `return_next_1d`
 - thresholds hiện thấy trong code:
   - `BUY` nếu return vượt ngưỡng dương
   - `SELL` nếu return nhỏ hơn ngưỡng âm
