@@ -58,7 +58,7 @@ flowchart LR
     C --> D["dbt transformations<br/>price + returns + technical + fundamentals + news metrics"]
     D --> E["dwh.fact_metric / marts"]
     E --> F["ML prediction<br/>BUY / SELL / SILENT"]
-    F --> H["dwh.fact_decision"]
+    F --> H["dwh.fact_decision<br/>ML prediction + final decision"]
     F --> X["Feature set used by ML"]
     X --> T["dwh.fact_txn_fp_growth_metrics"]
     T --> P["FP-Growth pattern learning<br/>high BUY / SELL rate"]
@@ -68,8 +68,7 @@ flowchart LR
     R2 --> G
     H --> G
     H --> J["Evaluation T+1"]
-    G --> K["Pattern scan"]
-    K --> L["dwh.fact_scan"]
+    G -->|update final result| H
     B --> M["crawl_log"]
     H --> N["data_quality_report"]
     M --> N
@@ -160,7 +159,7 @@ FP-Growth chỉ được thực hiện sau bước ML. Hệ thống lấy tập 
 - Đưa feature hiện tại của từng mã vào bước combo-rule matching.
 - Xác định rule BUY hoặc SELL nào đang khớp.
 - Đối chiếu kết quả rule với prediction từ model chính.
-- Lưu kết quả quét vào `dwh.fact_scan`.
+- Ghi kết quả cuối cùng trực tiếp vào `dwh.fact_decision`.
 
 ### 4.5. Monitoring layer
 
@@ -184,7 +183,6 @@ stock_project/
 │   ├── ddl_dw.sql
 │   ├── ddl_fact_decision.sql
 │   ├── ddl_fact_cal_ruls_fp_growth.sql
-│   ├── ddl_fact_scan.sql
 │   ├── ddl_news_keyword.sql
 │   └── ddl_news_sentiment.sql
 ├── dbt/
@@ -242,7 +240,6 @@ Các bảng quan trọng:
 - `dwh.fact_txn_fp_growth_metrics`: dữ liệu transaction dùng để khai phá combo rule.
 - `dwh.fact_cal_rules_fp_growth_buy`: combo rule xác nhận tín hiệu BUY.
 - `dwh.fact_cal_rules_fp_growth_sell`: combo rule xác nhận tín hiệu SELL.
-- `dwh.fact_scan`: kết quả quét pattern theo ngày.
 
 ## 8. Kết quả đầu ra của project
 
@@ -251,7 +248,7 @@ Sau khi pipeline chạy ổn, bạn sẽ có các đầu ra chính sau:
 1. Một kho dữ liệu cổ phiếu Việt Nam có daily metrics và annual fundamentals.
 2. Một bảng quyết định giao dịch `dwh.fact_decision` để phục vụ dashboard hoặc downstream services.
 3. Hai bảng combo rule BUY/SELL để giải thích và xác nhận decision sau bước ML.
-4. Một bảng `dwh.fact_scan` cho biết hôm nay mã nào đang match pattern tốt.
+4. Kết quả combo-rule matching được cập nhật trực tiếp vào `dwh.fact_decision`.
 5. Một báo cáo chất lượng dữ liệu hằng ngày để theo dõi sức khỏe hệ thống.
 
 ## 9. Tình trạng hiện tại của repo
@@ -320,7 +317,6 @@ Thứ tự khuyến nghị:
 4. `db/ddl_news_sentiment.sql`
 5. `db/ddl_fact_decision.sql`
 6. `db/ddl_fact_cal_ruls_fp_growth.sql`
-7. `db/ddl_fact_scan.sql`
 
 `db/ddl_dw.sql` là tài liệu DWH cũ hơn và có giá trị tham khảo, nhưng nếu dùng dbt làm nguồn chân lý cho `fact_metric` và marts thì bạn nên ưu tiên schema do dbt materialize.
 
@@ -625,7 +621,7 @@ python scan_signals.py --date 2026-03-16 --top 10 --min-win 0.70
 Kết quả:
 
 - hiển thị confirmed signals trong console
-- ghi scan results vào `dwh.fact_scan`
+- ghi kết quả prediction sau combo-rule matching vào `dwh.fact_decision`
 
 ### 13.10. Chạy data quality report
 
@@ -715,14 +711,6 @@ Hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_
 - các cờ `x1` đến `x16` xác định điều kiện bắt buộc của rule
 - rule nào đang khớp với prediction hiện tại
 
-### `dwh.fact_scan`
-
-Đây là bảng dùng để trả lời:
-
-- hôm nay mã nào match pattern tốt
-- mã đó có đồng thời được model chính dự báo `BUY` hoặc `SELL` hay không
-- đâu là confirmed signal
-
 ## 18. Kiểm thử và validation
 
 ### dbt tests
@@ -739,7 +727,7 @@ dbt test --select fact_metric int_price_daily
 3. Kiểm tra `dwh.fact_metric` có cập nhật tới ngày mới nhất hay chưa.
 4. Kiểm tra `dwh.fact_decision` đã có prediction cho ngày gần nhất chưa.
 5. Kiểm tra hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` có dữ liệu chưa.
-6. Kiểm tra `dwh.fact_scan` có kết quả match sau scan chưa.
+6. Kiểm tra `dwh.fact_decision` đã được cập nhật sau combo-rule matching chưa.
 
 ## 19. Các known issues / rủi ro kỹ thuật
 
