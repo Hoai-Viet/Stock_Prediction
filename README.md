@@ -15,9 +15,9 @@ Nền tảng dữ liệu và AI cho chứng khoán Việt Nam, tập trung vào 
 Project được xây để trả lời 4 câu hỏi chính:
 
 1. Mỗi ngày thị trường đóng cửa xong, có thể tự động gom đủ dữ liệu đầu vào cho quyết định giao dịch ngày kế tiếp hay không?
-2. Từ dữ liệu giá, technical indicators, fundamentals và sentiment news, có thể gán nhãn hành động `BUY` / `SELL` / `SILENT` cho từng mã không?
-3. Sau khi mô hình ML sinh dự đoán, combo rule FP-Growth nào có thể xác nhận hoặc bổ sung ngữ cảnh cho tín hiệu đó?
-4. Sau vài ngày giao dịch, hệ thống có thể tự đánh giá prediction đã đúng hay sai và theo dõi chất lượng pipeline không?
+2. Từ các feature đã được mô hình ML lựa chọn, có thể học được combo rule nào thường dẫn tới BUY hoặc SELL không?
+3. Feature của ngày hôm nay đang khớp combo rule nào để dự đoán hành động cho phiên ngày mai?
+4. Sau khi có dữ liệu phiên kế tiếp, hệ thống có thể tự đánh giá prediction đã đúng hay sai và theo dõi chất lượng pipeline không?
 
 ### Technical goal
 
@@ -26,8 +26,8 @@ Repo này được tổ chức như một mini data platform:
 - `scripts/crawling`: lấy dữ liệu từ `vnstock` và RSS.
 - `db`: DDL để dựng schema nguồn và kho dữ liệu.
 - `dbt`: mô hình hóa dữ liệu cho analytics và ML serving.
-- `scripts/ml`: suy luận mô hình và đánh giá lại prediction.
-- `scripts/fp_growth`: xử lý combo rule và quét xác nhận sau bước ML.
+- `scripts/ml`: huấn luyện, đánh giá và lựa chọn feature cho bài toán dự đoán.
+- `scripts/fp_growth`: học combo rule từ feature ML và sinh dự đoán T+1.
 - `airflow/dags`: orchestration lịch chạy.
 - `scripts/data_quality_report.py`: lớp quan sát chất lượng dữ liệu.
 
@@ -36,8 +36,9 @@ Repo này được tổ chức như một mini data platform:
 Thay vì dự đoán giá đóng cửa tuyệt đối, project đang đi theo hướng thực dụng hơn:
 
 - Gom feature hằng ngày cho từng mã.
-- Dùng model phân loại để dự báo hướng biến động của phiên giao dịch kế tiếp (`T+1`).
-- Chuyển kết quả sang dạng quyết định hành động:
+- Dùng ML để xác định tập feature có giá trị cho bài toán dự báo.
+- Dùng FP-Growth học các combo feature có tỷ lệ BUY/SELL cao.
+- Match feature ngày hiện tại với combo rule để tạo quyết định cho phiên kế tiếp:
   - `BUY`: kỳ vọng tăng đủ mạnh.
   - `SELL`: kỳ vọng giảm đủ mạnh.
   - `SILENT`: không có edge đủ rõ để hành động.
@@ -57,18 +58,18 @@ flowchart LR
     B --> C["PostgreSQL staging"]
     C --> D["dbt transformations<br/>price + returns + technical + fundamentals + news metrics"]
     D --> E["dwh.fact_metric / marts"]
-    E --> F["ML prediction<br/>BUY / SELL / SILENT"]
-    F --> H["dwh.fact_decision<br/>ML prediction + final decision"]
-    F --> X["Feature set used by ML"]
+    E --> F["ML training & feature selection"]
+    F --> X["Selected ML feature set"]
     X --> T["dwh.fact_txn_fp_growth_metrics"]
     T --> P["FP-Growth pattern learning<br/>high BUY / SELL rate"]
     P --> R1["dwh.fact_cal_rules_fp_growth_buy"]
     P --> R2["dwh.fact_cal_rules_fp_growth_sell"]
-    R1 --> G["Combo-rule matching"]
+    E --> C1["Today's feature values"]
+    C1 --> G["Combo-rule matching"]
+    R1 --> G
     R2 --> G
-    H --> G
+    G --> H["dwh.fact_decision<br/>Tomorrow's BUY / SELL / HOLD"]
     H --> J["Evaluation T+1"]
-    G -->|update final result| H
     B --> M["crawl_log"]
     H --> N["data_quality_report"]
     M --> N
@@ -125,12 +126,11 @@ Các model nổi bật:
 
 ### 4.3. ML layer
 
-`scripts/ml/predict.py`
+ML không ghi trực tiếp vào `dwh.fact_decision`.
 
-- Load model artifact đã lưu trong `scripts/ml/models`.
-- Lấy feature theo ngày mới nhất.
-- Suy luận nhãn `BUY` / `SELL` / `SILENT`.
-- Upsert prediction vào `dwh.fact_decision`.
+- Huấn luyện và đánh giá mô hình trên dữ liệu lịch sử.
+- Xác định tập feature có giá trị cho bài toán dự báo T+1.
+- Chuyển tập feature/điều kiện đã chọn thành dữ liệu transaction cho FP-Growth.
 
 `scripts/ml/update_actual_returns.py`
 
@@ -151,15 +151,14 @@ FP-Growth chỉ được thực hiện sau bước ML. Hệ thống lấy tập 
 - Ghi rule vào `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell`.
 - Cập nhật rule tổng hợp thông qua procedure trong database.
 
-`scripts/fp_growth/scan_signals.py`
+`scripts/fp_growth/predict.py`
 
-- Chạy sau khi ML đã sinh prediction và FP-Growth đã học xong combo rule.
-- Đọc prediction từ `dwh.fact_decision`.
+- Lấy feature của ngày giao dịch hiện tại từ `dwh.fact_metric`.
 - Đọc combo rule từ hai bảng BUY/SELL trong database.
-- Đưa feature hiện tại của từng mã vào bước combo-rule matching.
+- Đưa feature hôm nay của từng mã vào bước combo-rule matching.
 - Xác định rule BUY hoặc SELL nào đang khớp.
-- Đối chiếu kết quả rule với prediction từ model chính.
-- Ghi kết quả cuối cùng trực tiếp vào `dwh.fact_decision`.
+- Chọn kết quả theo confidence/lift của combo phù hợp nhất.
+- Ghi dự đoán cho phiên ngày mai trực tiếp vào `dwh.fact_decision`.
 
 ### 4.5. Monitoring layer
 
@@ -236,7 +235,7 @@ Các bảng quan trọng:
 
 - `dwh.fact_metric`: metric table trung tâm cho giá, return, technical, fundamentals, news features.
 - `dwh.fact_news_sentiment_daily`: sentiment feature theo ngày.
-- `dwh.fact_decision`: kết quả prediction của model.
+- `dwh.fact_decision`: dự đoán T+1 được sinh sau bước combo-rule matching.
 - `dwh.fact_txn_fp_growth_metrics`: dữ liệu transaction dùng để khai phá combo rule.
 - `dwh.fact_cal_rules_fp_growth_buy`: combo rule xác nhận tín hiệu BUY.
 - `dwh.fact_cal_rules_fp_growth_sell`: combo rule xác nhận tín hiệu SELL.
@@ -246,7 +245,7 @@ Các bảng quan trọng:
 Sau khi pipeline chạy ổn, bạn sẽ có các đầu ra chính sau:
 
 1. Một kho dữ liệu cổ phiếu Việt Nam có daily metrics và annual fundamentals.
-2. Một bảng quyết định giao dịch `dwh.fact_decision` để phục vụ dashboard hoặc downstream services.
+2. Một bảng quyết định giao dịch `dwh.fact_decision`, được ghi sau khi feature hôm nay khớp combo rule BUY/SELL.
 3. Hai bảng combo rule BUY/SELL để giải thích và xác nhận decision sau bước ML.
 4. Kết quả combo-rule matching được cập nhật trực tiếp vào `dwh.fact_decision`.
 5. Một báo cáo chất lượng dữ liệu hằng ngày để theo dõi sức khỏe hệ thống.
@@ -475,10 +474,11 @@ Nếu bạn chỉ muốn dựng thử pipeline end-to-end nhanh nhất, làm the
 4. Chạy crawl news.
 5. Chạy build news features.
 6. Chạy `dbt run`.
-7. Chạy `predict.py`.
-8. Chạy `scan_signals.py`.
-9. Sau khi có dữ liệu phiên giao dịch kế tiếp, chạy `update_actual_returns.py`.
-10. Chạy `data_quality_report.py` để kiểm tra hệ thống.
+7. Huấn luyện/đánh giá ML để xác định tập feature.
+8. Chạy `append_likely_rules.py` để học combo rule.
+9. Chạy `scripts/fp_growth/predict.py` để dự đoán phiên ngày mai.
+10. Sau khi có dữ liệu phiên giao dịch kế tiếp, chạy `update_actual_returns.py`.
+11. Chạy `data_quality_report.py` để kiểm tra hệ thống.
 
 ## 13. Cách chạy từng phần
 
@@ -555,20 +555,9 @@ Repo hiện có test kiểm tra:
 - unique grain cho `fact_metric`
 - fundamentals chỉ được gắn `period_type = 'annual'`
 
-### 13.6. ML inference
+### 13.6. ML training và feature selection
 
-```bash
-cd scripts/ml
-python predict.py
-```
-
-Script sẽ:
-
-- load `.env`
-- load model artifact và `feature_cols.pkl`
-- đọc ngày giao dịch mới nhất
-- suy luận prediction
-- upsert vào `dwh.fact_decision`
+ML được dùng để huấn luyện, đánh giá và xác định tập feature đầu vào cho FP-Growth. Bước này không ghi prediction vào `dwh.fact_decision`.
 
 ### 13.7. Đánh giá prediction sau T+1
 
@@ -600,28 +589,22 @@ Kết quả:
 - ghi combo BUY vào `dwh.fact_cal_rules_fp_growth_buy`
 - ghi combo SELL vào `dwh.fact_cal_rules_fp_growth_sell`
 
-### 13.9. Scan signals
+### 13.9. Dự đoán phiên ngày mai
 
-Chỉ chạy bước này sau khi ML đã ghi prediction và FP-Growth đã cập nhật các combo rule.
+Chạy sau khi FP-Growth đã cập nhật các combo rule BUY/SELL.
 
-Quét ngày mới nhất:
-
-```bash
-cd scripts/fp_growth
-python scan_signals.py
-```
-
-Quét một ngày cụ thể:
+Sinh dự đoán từ feature ngày mới nhất:
 
 ```bash
 cd scripts/fp_growth
-python scan_signals.py --date 2026-03-16 --top 10 --min-win 0.70
+python predict.py --write-db --signals-only
 ```
 
 Kết quả:
 
-- hiển thị confirmed signals trong console
-- ghi kết quả prediction sau combo-rule matching vào `dwh.fact_decision`
+- match feature hôm nay với combo rule BUY/SELL
+- dự đoán `BUY` / `SELL` / `HOLD` cho phiên ngày mai
+- ghi kết quả vào `dwh.fact_decision`
 
 ### 13.10. Chạy data quality report
 
@@ -636,7 +619,7 @@ python data_quality_report.py
 
 | DAG | Lịch chạy | Vai trò |
 |---|---|---|
-| `stock_daily_pipeline` | hằng ngày sau market close | `crawl_intraday -> dbt_run -> ml_predict -> fp_scan_signals` |
+| `prediction_dag` | hằng ngày sau market close | `feature hiện tại -> combo-rule matching -> fact_decision -> notification` |
 | `stock_crawl_news` | hằng ngày `01:30` | crawl news và build news features |
 | `stock_crawl_financial_statements` | hằng ngày `02:00` | crawl BCTC |
 | `ml_evaluate_predictions` | hằng ngày | cập nhật actual returns |
@@ -690,7 +673,7 @@ Artifacts hiện có trong `scripts/ml/models/`:
 
 ### `dwh.fact_decision`
 
-Đây là bảng quan trọng nhất nếu bạn muốn build dashboard hoặc service downstream.
+Đây là bảng kết quả cuối cùng sau khi feature hôm nay được match với combo rule để dự đoán phiên kế tiếp.
 
 Ví dụ các cột hữu ích:
 

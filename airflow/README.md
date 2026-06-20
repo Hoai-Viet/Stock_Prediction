@@ -91,7 +91,7 @@ Start-ScheduledTask -TaskName "Stock Crawl Financial Statements"
 
 | DAG | Schedule | Tasks |
 |-----|----------|-------|
-| `stock_daily_pipeline` | Mon-Fri 15:15 ICT | `crawl_intraday` → `dbt_run` → `ml_predict` → `fp_scan_signals` |
+| `prediction_dag` | Mon-Fri 21:30 | feature hiện tại → FP-Growth combo matching → `fact_decision` → Telegram |
 | `stock_crawl_news` | Daily 01:30 | `crawl_news` → `build_news_features` |
 | `stock_crawl_financial_statements` | Daily 02:00 | `crawl_bctc` |
 | `ml_evaluate_predictions` | Mon-Fri 08:00 | `evaluate_predictions` |
