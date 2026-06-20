@@ -5,18 +5,25 @@ from app.db import get_db, DWH
 
 router = APIRouter()
 
-METRIC_COLS = ["close", "ema_12", "ema_26", "rsi", "macd", "sentiment_score"]
+METRIC_COLS = [
+    "close_price",
+    "ema_12",
+    "ema_26",
+    "rsi_14",
+    "macd_line",
+    "macd_hist",
+    "volume",
+]
 
 
 @router.get("/")
 def get_data_explorer(
     symbol: str = Query(None),
     limit: int = Query(100, le=500),
-    mode: str = Query("feature", description="raw or feature"),
+    mode: str = Query("feature", description="Metric display mode"),
     db: Session = Depends(get_db),
 ):
     """Pivot latest metric rows into wide format for table display."""
-    table = "fact_cleaned_metric" if mode == "feature" else "fact_metric"
     symbol_filter = "AND s.symbol_code = UPPER(:symbol)" if symbol else ""
     params = {"limit": limit}
     if symbol:
@@ -28,7 +35,7 @@ def get_data_explorer(
             m.period_date,
             m.metric_code,
             m.metric_value
-        FROM {DWH}.{table} m
+        FROM {DWH}.fact_metric m
         LEFT JOIN staging.dim_symbol s ON s.symbol_key = m.symbol_key
         WHERE m.period_type = 'daily'
           AND m.metric_code = ANY(ARRAY{METRIC_COLS!r}::text[])

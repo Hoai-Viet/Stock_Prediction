@@ -10,7 +10,7 @@ export default function DataExplorer() {
         ? {
             title: "Khám phá dữ liệu",
             raw: "CHỈ SỐ GỐC",
-            features: "ĐẶC TRƯNG ĐÃ XỬ LÝ",
+            features: "CHỈ SỐ KỸ THUẬT",
             date: "Ngày",
             symbol: "Mã",
             metric: "Mã chỉ số",
@@ -20,7 +20,7 @@ export default function DataExplorer() {
         : {
             title: "Data Explorer",
             raw: "RAW METRICS",
-            features: "CLEANED FEATURES",
+            features: "TECHNICAL METRICS",
             date: "Date",
             symbol: "Symbol",
             metric: "Metric Code",

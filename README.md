@@ -196,7 +196,6 @@ stock_project/
 │   │   ├── predict.py                # Match rule và dự đoán T+1
 │   │   └── scan_signals.py
 │   ├── notifications/                # Telegram notifications
-│   ├── backfill/                     # Khôi phục và backfill feature
 │   ├── EDA/                          # Phân tích khám phá dữ liệu
 │   └── data_quality_report.py
 ├── web_stock_prediction/
@@ -322,7 +321,6 @@ Phần này quan trọng vì README nên phản ánh đúng codebase hiện tạ
 ### Chưa hoàn chỉnh hoặc cần lưu ý
 
 - DAG `ml_weekly_maintenance_dag.py` đang gọi `train_model.py`, nhưng trong repo hiện tại chỉ thấy `scripts/ml/train_model.ipynb`.
-- `predict.py` mặc định đọc từ `dwh.fact_cleaned_metric`, nhưng model này không xuất hiện trực tiếp trong `dbt/models/` hiện tại. Nghĩa là môi trường chạy thật có thể đang có một bảng/view ngoài repo, hoặc bạn cần tự alias / materialize thêm.
 - Tài liệu cũ trong repo có vài chỗ không còn khớp 100% với code hiện tại; README này ưu tiên bám vào scripts và DAG đang tồn tại.
 - Airflow chạy native trên Windows không ổn định; thư mục `airflow/README.md` khuyến nghị dùng Task Scheduler hoặc WSL2 / Linux.
 
@@ -688,23 +686,7 @@ python data_quality_report.py
 - Trên Windows, repo này đã có tài liệu khuyến nghị dùng Task Scheduler thay vì Airflow native.
 - Nếu triển khai production nghiêm túc, nên chạy trên Linux hoặc WSL2.
 
-## 15. Backfill lịch sử
-
-Repo có utility `run_backfill.py`.
-
-Mục đích:
-
-- patch tạm `dbt/models/marts/fact_metric.sql`
-- patch macro indicator
-- chạy `dbt run` theo từng năm
-- restore file gốc sau khi xong
-
-Lưu ý:
-
-- đây là utility tác động trực tiếp vào file model rồi restore lại sau
-- chỉ nên dùng khi bạn hiểu rõ flow backfill và đã backup môi trường
-
-## 16. Mô hình ML hiện dùng gì
+## 15. Mô hình ML hiện dùng gì
 
 Từ notebook và artifacts hiện có, project đang dùng hướng tiếp cận:
 
@@ -725,7 +707,7 @@ Artifacts hiện có trong `scripts/ml/models/`:
 - `model_v1.pkl` đến `model_v4.pkl`
 - `feature_cols.pkl`
 
-## 17. Cách hiểu output thực tế
+## 16. Cách hiểu output thực tế
 
 ### `dwh.fact_decision`
 
@@ -750,7 +732,7 @@ Hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_
 - các cờ `x1` đến `x16` xác định điều kiện bắt buộc của rule
 - rule nào đang khớp với prediction hiện tại
 
-## 18. Kiểm thử và validation
+## 17. Kiểm thử và validation
 
 ### dbt tests
 
@@ -768,16 +750,14 @@ dbt test --select fact_metric int_price_daily
 5. Kiểm tra hai bảng `dwh.fact_cal_rules_fp_growth_buy` và `dwh.fact_cal_rules_fp_growth_sell` có dữ liệu chưa.
 6. Kiểm tra `dwh.fact_decision` đã được cập nhật sau combo-rule matching chưa.
 
-## 19. Các known issues / rủi ro kỹ thuật
+## 18. Các known issues / rủi ro kỹ thuật
 
 1. Một số tài liệu trong repo nhắc tới `train_model.py`, nhưng file này hiện chưa có trong `scripts/ml/`.
-2. `predict.py` phụ thuộc `fact_cleaned_metric`; bạn cần xác minh bảng này trong môi trường thật.
-3. `dbt/models/marts/fact_metric.sql` hiện có dấu hiệu từng bị patch nhiều lần cho backfill, nên cần review kỹ trước khi productionize.
-4. Repo đang dùng nhiều `.env` theo module; nếu không thống nhất sẽ rất dễ lệch config giữa crawling, ML và FP-Growth.
-5. Airflow DAG mô tả lịch chạy và path khá rõ, nhưng nếu chạy trên Windows native sẽ dễ gặp vấn đề môi trường.
-6. Notebook training chưa được chuyển hoàn toàn thành training pipeline reproducible qua CLI.
+2. Repo đang dùng nhiều `.env` theo module; nếu không thống nhất sẽ rất dễ lệch config giữa crawling, ML và FP-Growth.
+3. Airflow DAG mô tả lịch chạy và path khá rõ, nhưng nếu chạy trên Windows native sẽ dễ gặp vấn đề môi trường.
+4. Notebook training chưa được chuyển hoàn toàn thành training pipeline reproducible qua CLI.
 
-## 20. Tham khảo khi viết README này
+## 19. Tham khảo khi viết README này
 
 README này được tổ chức theo hướng rõ mục tiêu, quick start, architecture, data model, output và operational notes. Bố cục được tham khảo tinh thần từ các README/data project public trên GitHub và tài liệu chính thức của các ecosystem liên quan, đặc biệt là:
 
@@ -787,7 +767,7 @@ README này được tổ chức theo hướng rõ mục tiêu, quick start, arc
 
 Phần nội dung nghiệp vụ, luồng dữ liệu và caveat triển khai trong README này được đối chiếu chủ yếu từ chính codebase hiện tại của repo.
 
-## 21. Gợi ý thứ tự đọc repo
+## 20. Gợi ý thứ tự đọc repo
 
 Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 
@@ -800,7 +780,7 @@ Nếu bạn là người mới vào project, nên đọc theo thứ tự:
 7. `scripts/fp_growth/`
 8. `airflow/dags/`
 
-## 22. Web application
+## 21. Web application
 
 Project đi kèm một ứng dụng web phục vụ việc theo dõi tín hiệu và phân tích từng mã cổ phiếu.
 
@@ -908,7 +888,7 @@ npm run build
 npm run start -- -H 0.0.0.0 -p 3000
 ```
 
-## 23. Biến môi trường
+## 22. Biến môi trường
 
 Không commit `.env` thật lên GitHub. Tạo file `.env` ở root project với các biến tối thiểu:
 
@@ -930,7 +910,7 @@ Frontend production dùng:
 NEXT_PUBLIC_API_BASE_URL=http://your-host:8000
 ```
 
-## 24. Bảo mật trước khi public
+## 23. Bảo mật trước khi public
 
 Trước mỗi lần push hoặc deploy:
 
@@ -941,6 +921,6 @@ Trước mỗi lần push hoặc deploy:
 5. Thay các mật khẩu đã từng xuất hiện trong terminal hoặc repository history.
 6. Chạy `git status` và kiểm tra từng file trước khi commit.
 
-## 25. License và ghi chú
+## 24. License và ghi chú
 
 Repo hiện chưa thấy file `LICENSE` ở root. Nếu bạn định public project này trên GitHub, nên bổ sung license phù hợp và che toàn bộ secrets trong `.env` trước khi push.

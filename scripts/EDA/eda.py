@@ -6,7 +6,7 @@ import missingno as msno
 import pandas as pd
 import seaborn as sns
 from dotenv import load_dotenv
-from sqlalchemy import MetaData, Table, create_engine, text
+from sqlalchemy import create_engine, text
 
 env_candidates = [
     Path("../../.env"),
@@ -139,36 +139,3 @@ df_daily = df_daily.drop(columns=[
 ])
 
 df_daily.info()
-
-from sqlalchemy.dialects.postgresql import insert
-
-df_daily_latest = df_daily[df_daily["period_date"] == latest_period_date].copy()
-print(f"Preparing latest-only cleaned metrics for {latest_period_date.date()}: {len(df_daily_latest):,} rows")
-
-df_daily_long = (
-    df_daily_latest.melt(
-        id_vars=["symbol_key", "period_date"],
-        var_name="metric_code",
-        value_name="metric_value",
-    )
-    .dropna(subset=["metric_value"])
-    .assign(period_type="daily")
-)
-df_daily_long["inserted_at"] = pd.Timestamp.now(tz="UTC").floor("s")
-
-records = df_daily_long.to_dict(orient="records")
-table = Table("fact_cleaned_metric", MetaData(), schema=DWH, autoload_with=engine)
-
-chunksize = 5000
-inserted = 0
-
-with engine.begin() as conn:
-    for i in range(0, len(records), chunksize):
-        chunk = records[i : i + chunksize]
-        stmt = insert(table).values(chunk).on_conflict_do_nothing(
-            index_elements=["symbol_key", "period_date", "period_type", "metric_code"]
-        )
-        result = conn.execute(stmt)
-        inserted += result.rowcount
-
-print(f"Inserted {inserted:,} new rows / {len(records):,} latest-date rows attempted")
