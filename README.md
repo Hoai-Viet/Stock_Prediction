@@ -320,7 +320,6 @@ Phần này quan trọng vì README nên phản ánh đúng codebase hiện tạ
 
 ### Chưa hoàn chỉnh hoặc cần lưu ý
 
-- DAG `ml_weekly_maintenance_dag.py` đang gọi `train_model.py`, nhưng trong repo hiện tại chỉ thấy `scripts/ml/train_model.ipynb`.
 - Tài liệu cũ trong repo có vài chỗ không còn khớp 100% với code hiện tại; README này ưu tiên bám vào scripts và DAG đang tồn tại.
 - Airflow chạy native trên Windows không ổn định; thư mục `airflow/README.md` khuyến nghị dùng Task Scheduler hoặc WSL2 / Linux.
 
@@ -677,7 +676,7 @@ python data_quality_report.py
 | `stock_crawl_news` | hằng ngày `01:30` | crawl news và build news features |
 | `stock_crawl_financial_statements` | hằng ngày `02:00` | crawl BCTC |
 | `ml_evaluate_predictions` | hằng ngày | cập nhật actual returns |
-| `ml_weekly_maintenance` | Chủ nhật `03:00` | retrain model và mine patterns |
+| `ml_weekly_maintenance` | Chủ nhật `03:00` | cập nhật combo rule BUY/SELL |
 | `data_quality_report` | ngày làm việc | báo cáo chất lượng dữ liệu |
 
 ### Lưu ý quan trọng về Airflow
@@ -752,10 +751,9 @@ dbt test --select fact_metric int_price_daily
 
 ## 18. Các known issues / rủi ro kỹ thuật
 
-1. Một số tài liệu trong repo nhắc tới `train_model.py`, nhưng file này hiện chưa có trong `scripts/ml/`.
-2. Repo đang dùng nhiều `.env` theo module; nếu không thống nhất sẽ rất dễ lệch config giữa crawling, ML và FP-Growth.
-3. Airflow DAG mô tả lịch chạy và path khá rõ, nhưng nếu chạy trên Windows native sẽ dễ gặp vấn đề môi trường.
-4. Notebook training chưa được chuyển hoàn toàn thành training pipeline reproducible qua CLI.
+1. Repo đang dùng nhiều `.env` theo module; nếu không thống nhất sẽ rất dễ lệch config giữa crawling, ML và FP-Growth.
+2. Airflow DAG mô tả lịch chạy và path khá rõ, nhưng nếu chạy trên Windows native sẽ dễ gặp vấn đề môi trường.
+3. Training hiện được lưu dưới dạng notebook và chưa được tự động hóa qua DAG.
 
 ## 19. Tham khảo khi viết README này
 

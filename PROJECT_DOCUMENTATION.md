@@ -48,7 +48,7 @@ flowchart TD
     end
 
     subgraph ML["🤖 ML Feature Pipeline"]
-        E1[train_model.py<br/>XGBoost / RF / LR]
+        E1[train_model.ipynb<br/>XGBoost / RF / LR]
         E2[Feature training & selection]
     end
 
@@ -113,9 +113,8 @@ stock_project/
 │   │   └── build_news_features.py   # Tổng hợp features tin tức
 │   │
 │   ├── ml/                          # Machine Learning
-│   │   ├── train_model.py           # Huấn luyện model (XGBoost/RF/LR)
+│   │   ├── train_model.ipynb        # Huấn luyện và chọn feature
 │   │   ├── update_actual_returns.py  # Đánh giá accuracy sau T+1
-│   │   ├── evaluate_features.py     # Đánh giá chất lượng features
 │   │   └── models/                  # Saved model artifacts
 │   │
 │   ├── fp_growth/                   # Học và match combo rules
@@ -316,9 +315,9 @@ flowchart LR
 
 ---
 
-### 3.3. 🤖 Machine Learning — Dự đoán giao dịch
+### 3.3. 🤖 Machine Learning — Huấn luyện và chọn feature
 
-#### `train_model.py` — Huấn luyện mô hình
+#### `train_model.ipynb` — Huấn luyện mô hình
 
 | Mục | Chi tiết |
 |-----|---------|
@@ -331,7 +330,7 @@ flowchart LR
 | **Class Weights** | SILENT class boost ×2 để cải thiện recall |
 | **Confidence Filter** | Lọc BUY/SELL có confidence thấp → chuyển sang SILENT |
 | **Entry Timing** | Mô hình phụ: dự đoán thời điểm vào lệnh tối ưu (OPEN vs CLOSE) |
-| **Schedule** | Hàng tuần Chủ nhật 3:00 AM, trong DAG `ml_weekly_maintenance` |
+| **Thực thi** | Chạy notebook khi cần huấn luyện lại hoặc đánh giá feature |
 
 #### Features sử dụng (62+ features)
 
@@ -439,12 +438,12 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-    A[train_trading_model] --> B[append_likely_rules]
+    A[refresh_combo_rules<br/>append_likely_rules.py]
 ```
 
 | Schedule | `0 3 * * 0` (3:00 AM Chủ nhật) |
 |----------|------|
-| **Mô tả** | Retrain model, sau đó cập nhật combo rule BUY/SELL |
+| **Mô tả** | Cập nhật combo rule BUY/SELL từ transaction feature hiện có |
 
 ### 4.6. `data_quality_report` — Báo cáo chất lượng dữ liệu
 
@@ -516,15 +515,14 @@ dwh (data warehouse):
 ⏰ 02:00  crawl_bctc_dag:     Crawl BCTC ngân hàng
 ⏰ 08:00  ml_evaluate_dag:    Đánh giá predictions T-3 → cập nhật accuracy
 ⏰ 09:00  data_quality_dag:   Báo cáo chất lượng dữ liệu (crawl logs, gaps, coverage)
-⏰ 15:15  stock_daily_pipeline:
-           1️⃣ Crawl intraday (giá nến 1 phút sau đóng cửa)
+⏰ Sau đóng cửa:
+           1️⃣ Crawl intraday (giá nến 1 phút)
            2️⃣ dbt run (tính technical indicators + metrics)
-           3️⃣ ML predict (dự đoán BUY/SELL/SILENT cho T+1)
-           4️⃣ FP scan signals (quét stocks khớp patterns)
+           3️⃣ Combo-rule matching
+           4️⃣ Ghi dự đoán T+1 vào fact_decision
 
 🔄 Chủ nhật 03:00  ml_weekly_maintenance:
-           1️⃣ Retrain model (so sánh XGBoost/RF/LR → chọn tốt nhất)
-           2️⃣ Mine feature pairs (FP-Growth trên evaluated predictions)
+           1️⃣ Cập nhật combo rule BUY/SELL bằng append_likely_rules.py
 ```
 
 ---

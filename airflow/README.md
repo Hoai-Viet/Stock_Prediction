@@ -95,7 +95,7 @@ Start-ScheduledTask -TaskName "Stock Crawl Financial Statements"
 | `stock_crawl_news` | Daily 01:30 | `crawl_news` → `build_news_features` |
 | `stock_crawl_financial_statements` | Daily 02:00 | `crawl_bctc` |
 | `ml_evaluate_predictions` | Mon-Fri 08:00 | `evaluate_predictions` |
-| `ml_weekly_maintenance` | Sunday 03:00 | `train_model` → `mine_feature_pairs` |
+| `ml_weekly_maintenance` | Sunday 03:00 | refresh FP-Growth BUY/SELL combo rules |
 
 ---
 
